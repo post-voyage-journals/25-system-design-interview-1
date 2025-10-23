@@ -166,92 +166,11 @@ function fromBase62(shortUrl):
     return id
 ```
 
-**실전 고려사항**:
-
-1. **최소 길이 보장**:
-   - 초기 ID가 작으면 1-2자리만 나올 수 있음
-   - 보안/예측 방지를 위해 최소 길이 패딩
-   - 예: 앞에 랜덤 문자 추가 또는 고정 오프셋 사용
-
-2. **충돌 방지**:
-   - 데이터베이스 auto_increment ID를 직접 사용하면 순차적이라 예측 가능
-   - 해시 함수나 분산 ID 생성기(Snowflake) 조합 권장
-
 **결론**: Base62 변환은 간단한 진법 변환이며, 62진수 나눗셈의 나머지를 문자로 매핑하는 과정입니다.
 </details>
 
 <details>
-<summary>Q4. 캐싱 전략은 어떻게 가져갈 것인가요?</summary>
-
-**캐싱이 필요한 이유**:
-- URL 단축 서비스는 읽기 요청이 압도적으로 많음 (읽기:쓰기 = 100:1 이상)
-- 인기 있는 URL은 반복적으로 요청됨
-- 데이터베이스 부하 감소 및 응답 속도 향상
-
-**캐싱 계층**:
-
-1. **클라이언트 측 캐싱**:
-   - 브라우저 캐시 (301 사용 시)
-   - 앞서 Q1에서 설명했듯이 통계 수집 문제로 비권장
-
-2. **CDN 캐싱**:
-   - 지리적으로 분산된 엣지 서버에서 캐싱
-   - 응답 속도 크게 향상 (지연 시간 감소)
-   - CloudFront, Cloudflare, Akamai 등 활용
-   - **전략**: 인기 URL만 CDN에 캐싱, TTL은 짧게 설정 (클릭 통계 손실 최소화)
-
-3. **애플리케이션 서버 캐싱**:
-   - Redis, Memcached 같은 인메모리 캐시
-   - 데이터베이스 앞단에 배치
-   - **가장 중요한 계층**
-
-**캐싱 전략 (애플리케이션 레벨): Cache-Aside + Write-Through**
-- 읽기: Cache-Aside (자주 사용되는 URL만 캐싱)
-- 쓰기: Write-Through (새 URL 생성 시 캐시에도 저장)
-
-**캐싱 세부 전략**:
-
-**1. TTL (Time-To-Live) 설정**:
-- 인기 URL: 24시간
-- 일반 URL: 1시간
-- 사용 빈도에 따라 동적 TTL 조정
-
-**2. 캐시 키 설계**:
-```
-Key: "short_url:{hash}"
-Value: {
-  "original_url": "https://example.com/long-url",
-  "created_at": "2025-01-15T10:00:00Z",
-  "expires_at": "2026-01-15T10:00:00Z"
-}
-```
-
-**3. LRU (Least Recently Used) 정책**:
-- Redis의 `maxmemory-policy allkeys-lru` 설정
-- 메모리 부족 시 가장 오래 사용되지 않은 키 제거
-
-**4. 핫 키 문제 대응**:
-- 특정 URL에 요청 폭증 시 캐시 서버 단일 샤드에 부하 집중
-- **해결책**:
-  - 핫 키 복제 (여러 캐시 서버에 중복 저장)
-  - 로컬 캐시 추가 (애플리케이션 서버 메모리)
-  - Rate Limiting
-
-**5. 캐시 무효화 (Invalidation)**:
-- URL 수정/삭제 시 캐시에서도 제거
-- Pub/Sub 패턴으로 여러 캐시 서버 동기화
-
-**모니터링 메트릭**:
-- 캐시 히트율 (목표: 90% 이상)
-- 평균 응답 시간
-- 캐시 메모리 사용률
-- 캐시 미스 비율
-
-**결론**: Cache-Aside를 기본으로 하되, 읽기 성능이 중요하므로 CDN과 Redis를 조합하여 다층 캐싱 구조를 구축하는 것이 효과적입니다.
-</details>
-
-<details>
-<summary>Q5. URL 클릭 통계를 어떻게 수집하고, 어떤 메트릭 위주로 수집할 것인가요?</summary>
+<summary>Q4. URL 클릭 통계를 어떻게 수집하고, 어떤 메트릭 위주로 수집할 것인가요?</summary>
 
 **통계 수집 아키텍처**:
 
@@ -374,7 +293,7 @@ Value: {
 </details>
 
 <details>
-<summary>Q6. 악의적인 URL을 어떻게 필터링할 것인가요?</summary>
+<summary>Q5. 악의적인 URL을 어떻게 필터링할 것인가요?</summary>
 
 **악의적인 URL 유형**:
 
@@ -524,7 +443,7 @@ POST /api/shorten
 </details>
 
 <details>
-<summary>Q7. SQL과 NoSQL 중 어떤 저장소에 URL을 저장할 것인가요?</summary>
+<summary>Q6. SQL과 NoSQL 중 어떤 저장소에 URL을 저장할 것인가요?</summary>
 
 **URL 단축 서비스 요구사항 분석**:
 
