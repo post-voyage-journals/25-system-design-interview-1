@@ -1,0 +1,74 @@
+## 살펴볼 서비스들
+
+- Google Drive
+- Dropbox
+- Box
+- Naver MYBOX
+
+## Google Drive - Differential Synchronization
+
+[Neil Fraser - Differential Synchronization](https://neil.fraser.name/writing/sync/)
+
+### 1. Conventional Strategies
+
+동기화에 사용되는 가장 일반적인 3가지 접근법들은 저마다의 단점이 존재함
+
+- **Locking**
+  - 한 번에 한 사용자만 편집 가능
+  - 다른 모든 사용자는 읽기 권한만 가짐
+- **Event passing**
+  - 모든 사용자의 모든 동작을 포착해서 다른 사용자들에게 전달하는 방식
+  - Operation Transformation 기반 알고리즘이 사용되고 있음
+  - 하나라도 놓치면 fork가 발생해서 버전 간격이 커질 수 있음
+- **Three-way merge**
+  - 작동 방식
+    - 클라이언트가 수정된 문서 내용을 서버로 전송
+    - 서버는 3-way merge를 통해 변경 사항을 추출하고 다른 사용자의 변경사항들과 병합
+    - 서버는 문서의 새로운 사본을 클라이언트로 전송
+  - 반이중 통신 방식이기에 동기화 중엔 수정이 불가능하며, 지연 시간이 생겨 실시간성이 떨어짐
+
+### 2. Differential Synchronization Overview
+
+- 백그라운드에서 diff 및 patch 연산을 무한 사이클링하는 대칭 알고리즘 방식
+- 3 way merge 방식의 "닭들이 멈춰야만 수를 셀 수 있다" 라는 제약 조건이 없어짐
+
+![Differential Synchronization Overview](./differential-synchronization-overview.png)
+
+동작 방식
+
+1. Client Text는 매번 Common Shadow와 비교됨
+2. `diff` 함수는 Client Text의 편집 내용들 반환
+3. 비교 이후 Client Text는 Common Shadow로 복사되고, 멀티스레드 환경을 위해 텍스트 스냅샷 생성
+4. 수정 사항은 best-effort와 함께 Server Text에 적용해야 함
+5. `patch` 결과로 Server Text 업데이트, 4번과 5번 단계는 블로킹될 필요가 없음
+
+`patch` 알고리즘은 **fuzzy** 방식이다
+
+- 즉 문서가 동기화 중에 변경되었더라도 patch가 적용될 수 있음
+
+### 3. Dual Shadow Method
+
+![Dual Shadow Method](./dual-shadow-method.png)
+
+- Client Text와 Server Shadow가 대칭적으로 일치하도록
+- Server Text와 Client Shadow가 대칭적으로 일치하도록
+- 텍스트에 대한 `patch`는 취약하더라도 best-effort를 유지하는 **fuzzy patch**로 수행
+- 하지만 best-effort는 네트워크 환경에서 보장할 수 있는 것이 없으므로, Client Shadow에 대한 간단한 체크섬도 전송
+  - 체크섬은 Server Shadow와 비교하며, 일치하지 않을 경우 전체 텍스트 본문 재전송
+
+### 4. Guaranteed Delivery Method
+
+![Guaranteed Delivery Method](./guarnteed-delivery-method.png)
+
+- Server Shadow는 최신 사본을, Backup Shadow는 장애에 대응하기 위한 이전 버전을 보관
+- 비대칭성으로 변화
+  - 데이터 손실의 경우 서버와의 연결 구성이 중요하므로
+  - 클라이언트 측 Backup Shadow를 만들 수도 있겠지만 실용적이지 않음
+
+### 5. Topology
+
+![Topologyto](./topology.png)
+
+- 클라이언트를 여러 서버에 균등하게 분산하는 방식
+- 균형 트리를 사용해 클라이언트 간 최단 경로 제공
+- server-to-server 로도 토폴로지 방식으로 연결
