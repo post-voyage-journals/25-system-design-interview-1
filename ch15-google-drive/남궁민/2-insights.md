@@ -2,7 +2,6 @@
 
 - Google Drive
 - Dropbox
-- Box
 - Naver MYBOX
 
 ## Google Drive - Differential Synchronization
@@ -72,6 +71,55 @@
 - 클라이언트를 여러 서버에 균등하게 분산하는 방식
 - 균형 트리를 사용해 클라이언트 간 최단 경로 제공
 - server-to-server 로도 토폴로지 방식으로 연결
+
+## Dropbox - How We've Scaled Dropbox
+
+[How We've Scaled Dropbox](https://youtu.be/PE4gwstWhmc?si=BtMRTVAcAS9W93cq)
+
+### Background: what is Dropbox
+
+- Goal: 사용자가 언제 어디서든 파일을 쉽게 가져올 수 있도록 하는 것
+- 사용자의 디바이스에서 변경사항이 발생할 때마다 업로드
+- Scale
+  - 10s million 사용자가 이용중
+  - 하루에 100s million 파일이 싱크됨
+- Challenges
+  - 쓰기 볼륨
+    - 대부분의 시스템은 읽기 비율이 많지만 Dropbox는 그렇지 않음
+      - 읽기:쓰기 비율이 대략 1:1
+    - PB 단위의 캐시를 사용해야 함
+  - ACID
+    - 대용량 파일에 대한 온전한 동기화
+    - 여러 디바이스에서 동시에 같은 Dropbox로 파일을 업데이트하는 경우를 위한 격리성
+    - 오프라인 작업도 지원해야 함
+
+### Examples: how have we evolved
+
+**High-level 아키텍처**
+
+- 초기에는 단일 서버로 시작
+- MySQL 인스턴스와 S3 도입
+- 서버를 알림 서버, 메타데이터 서버, 블록 서버로 분리
+  - 블록 서버는 로드밸런서로 RPC 통신을 수행하고, 메타데이터 서버가 모든 것을 캡슐화
+- Memcache를 추가해서 DB 부하 분산
+- 파일은 4MB의 청크로 나눠서 S3에 저장하며, 해시값을 통해 올바른 객체로 판정
+
+![Dropbox Architecture](./dropbox-architecture.png)
+
+**server_file_journal**
+
+- 클라이언트의 변경 사항을 메타데이터 서버에 업로드하고 서버가 로그에 기록하는 과정
+
+```sql
+CREATE TABLE `server_file_journal` (
+  `id` int(10) unsinged,
+  `filename` varchar(255),
+  `latest` tinyint(1),
+  `ns_id` int(10) unsigned,
+  `prev_rev` int(10) unsigned,
+  PRIMARY KEY (`ns_id`, `id`)
+) ENGINE=InnoDB;
+```
 
 ## Naver MYBOX - macOS 스마트 동기화
 
